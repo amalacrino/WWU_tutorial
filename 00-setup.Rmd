@@ -1,0 +1,42 @@
+---
+title: "Setup"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+---
+
+---
+
+<br>
+
+----
+
+## Software installation
+
+Make sure you have installed:
+
+  - **R** -- [link](https://www.r-project.org/)
+  - **R studio** -- [link](https://www.rstudio.com/)
+
+----
+
+## R packages installation
+
+Open R studio and run the following lines to install the packages we are going to use during this tutorial.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+options(repos="https://cran.rstudio.com")
+install.packages("tidyverse")
+install.packages("dada2")
+install.packages("phyloseq")
+install.packages("DECIPHER")
+install.packages("phangorn")
+install.packages("ape")
+```
+
+----
+
+## Organize folders and download the data
+
+
