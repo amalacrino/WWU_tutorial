@@ -12,3 +12,10 @@ navbar:
       icon: fa-gear
       href: "00-setup.html"
       
+    - text: "Tutorial"
+      menu:
+        - text: "DADA2 tutorial - PE reads"
+          href: "01-DADA2.html"
+        - text: "---------"
+        #- text: "Data analysis"
+        #  href: "02-data_analysis.html"

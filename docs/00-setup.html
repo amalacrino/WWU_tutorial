@@ -35,6 +35,10 @@
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
 <link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/clipboard-1.7.1/clipboard.min.js"></script>
+<link href="site_libs/primer-tooltips-1.4.0/build.css" rel="stylesheet" />
+<link href="site_libs/klippy-0.0.0.9500/css/klippy.min.css" rel="stylesheet" />
+<script src="site_libs/klippy-0.0.0.9500/js/klippy.min.js"></script>
 <link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
 <link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
 
@@ -333,6 +337,19 @@ div.tocify {
     Setup
   </a>
 </li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Tutorial
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="01-DADA2.html">DADA2 tutorial - PE reads</a>
+    </li>
+    <li class="divider"></li>
+  </ul>
+</li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
         
@@ -350,9 +367,11 @@ div.tocify {
 </div>
 
 
-<hr />
+<script>
+  addClassKlippyTo("pre.r, pre.markdown");
+  addKlippy('left', 'top', 'auto', '1', 'Copy code', 'Copied!');
+</script>
 <p><br></p>
-<hr />
 <div id="software-installation" class="section level2">
 <h2>Software installation</h2>
 <p>Make sure you have installed:</p>
@@ -365,41 +384,57 @@ div.tocify {
 <div id="r-packages-installation" class="section level2">
 <h2>R packages installation</h2>
 <p>Open R studio and run the following lines to install the packages we are going to use during this tutorial.</p>
-<pre class="r"><code>options(repos=&quot;https://cran.rstudio.com&quot;)
-install.packages(&quot;tidyverse&quot;)</code></pre>
-<pre><code>## 
-## The downloaded binary packages are in
-##  /var/folders/0v/9_wbqtlj1zs6p91ldqggtymr0000gn/T//Rtmpw16Mld/downloaded_packages</code></pre>
-<pre class="r"><code>install.packages(&quot;dada2&quot;)</code></pre>
-<pre><code>## Warning: package &#39;dada2&#39; is not available for this version of R
-## 
-## A version of this package for your version of R might be available elsewhere,
-## see the ideas at
-## https://cran.r-project.org/doc/manuals/r-patched/R-admin.html#Installing-packages</code></pre>
-<pre class="r"><code>install.packages(&quot;phyloseq&quot;)</code></pre>
-<pre><code>## Warning: package &#39;phyloseq&#39; is not available for this version of R
-## 
-## A version of this package for your version of R might be available elsewhere,
-## see the ideas at
-## https://cran.r-project.org/doc/manuals/r-patched/R-admin.html#Installing-packages</code></pre>
-<pre class="r"><code>install.packages(&quot;DECIPHER&quot;)</code></pre>
-<pre><code>## Warning: package &#39;DECIPHER&#39; is not available for this version of R
-## 
-## A version of this package for your version of R might be available elsewhere,
-## see the ideas at
-## https://cran.r-project.org/doc/manuals/r-patched/R-admin.html#Installing-packages</code></pre>
-<pre class="r"><code>install.packages(&quot;phangorn&quot;)</code></pre>
-<pre><code>## 
-## The downloaded binary packages are in
-##  /var/folders/0v/9_wbqtlj1zs6p91ldqggtymr0000gn/T//Rtmpw16Mld/downloaded_packages</code></pre>
-<pre class="r"><code>install.packages(&quot;ape&quot;)</code></pre>
-<pre><code>## 
-## The downloaded binary packages are in
-##  /var/folders/0v/9_wbqtlj1zs6p91ldqggtymr0000gn/T//Rtmpw16Mld/downloaded_packages</code></pre>
+<pre class="r"><code>install.packages(&quot;tidyverse&quot;)
+install.packages(&quot;dada2&quot;)
+install.packages(&quot;phyloseq&quot;)
+install.packages(&quot;DECIPHER&quot;)
+install.packages(&quot;phangorn&quot;)
+install.packages(&quot;ape&quot;)
+install.packages(&quot;seqinr&quot;)</code></pre>
 <hr />
 </div>
-<div id="organize-folders-and-download-the-data" class="section level2">
-<h2>Organize folders and download the data</h2>
+<div id="organize-folders-and-files" class="section level2">
+<h2>Organize folders and files</h2>
+<p>First we need to create a folder named <code>project</code> with this structure:</p>
+<pre><code>project
+  |___data</code></pre>
+<p>Now, we can move and move all our <code>.fastq.gz</code> to the folder named <code>data</code>, create a <code>.txt</code> file with the metadata and a empty <code>R</code> file where we will store our code. The project folder will look like this:</p>
+<pre><code>project
+|___data
+|     | file1_R1.fastq.gz
+|     | file1_R2.fastq.gz
+|     | ....... .fastq.gz
+|
+|___metadata.txt
+|___rcode.R</code></pre>
+<p><br></p>
+<div id="step-1.-download-the-data" class="section level3">
+<h3>Step 1. Download the data</h3>
+<p>Normally, you would just copy the data from your long-term storage device to the folder <code>project/data</code>. In this case we will download the data from GitHub.</p>
+<p><a href="https://downgit.github.io/#/home?url=https://github.com/amalacrino/WWU_tutorial/tree/main/project/data">Download this file</a> and unzip it inside the folder <code>project/data</code>.</p>
+<p><br></p>
+</div>
+<div id="step-2.-create-the-metadata-file" class="section level3">
+<h3>Step 2. Create the metadata file</h3>
+<p>Within the project folder, you need to save a file named <code>metadata.txt</code> (tab-separated values). The structure of this file should look like this:</p>
+<pre><code>SampleID    Factor1       Factor2   ...   FactorN
+S1          Control       Root      ...
+S2          Treatment     Root      ...</code></pre>
+<p>For this tutorial, you can download one from <a href="https://raw.githubusercontent.com/amalacrino/WWU_tutorial/main/project/metadata.txt">here</a> and place it inside the <code>project/</code> folder.</p>
+<p><br></p>
+</div>
+<div id="step-3.-create-a-r-file" class="section level3">
+<h3>Step 3. Create a R file</h3>
+<p>The quickest way to do so is to:</p>
+<ul>
+<li>Open R Studio</li>
+<li>Click on <code>File/New File/ R Script</code></li>
+<li>Click on <code>File/Save</code></li>
+<li>Navigate to your project folder and save it</li>
+<li>Close R Studio</li>
+<li>Open the file you just saved. In this way R Studio will open the file with that relative path already set, so you do not have to worry about changing your code every time you move the folder or when starting a new project.</li>
+</ul>
+</div>
 </div>
 
 
