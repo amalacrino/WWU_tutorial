@@ -1,0 +1,316 @@
+---
+title: "DADA2 tutorial - PE reads"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+params:
+  process: FALSE
+---
+
+```{r klippy, echo=FALSE, include=TRUE}
+klippy::klippy()
+```
+
+<br>
+
+### Load packages
+
+```{r, eval=params$process, warning=FALSE, message=FALSE}
+library("tidyverse")
+library("gridExtra")
+library("dada2")
+library("phyloseq")
+library("DECIPHER")
+library("phangorn")
+library("ape")
+library("seqinr")
+```
+
+<br>
+
+### File preparation
+
+First, we specify the number of threads to use when multithreaded functions are available.
+
+```{r, eval=params$process}
+n_cores <- 8
+```
+
+Then we run a list of commands to create some folders and specify paths to keep files organized.
+
+```{r, eval=params$process}
+indir <- "data"
+filter_dir <- 'fastq_filtered'
+outdir <- 'ASVs'
+tax <- 'SILVA'
+tax_key <- 'SILVA/silva_nr99_v138.1_wSpecies_train_set.fa.gz'
+metadata_file <- 'metadata.txt'
+tree <- 'tree.tre'
+asv.final.table <- 'ASV_table.rds'
+
+dir.create(filter_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(tax, showWarnings = FALSE, recursive = TRUE)
+dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
+```
+
+And then we can download the SILVA database (v138) that we will use for taxonomic assignment.
+
+```{r, eval=params$process}
+download.file("https://zenodo.org/record/4587955/files/silva_nr99_v138.1_wSpecies_train_set.fa.gz", file.path(tax, 'silva_nr99_v138.1_wSpecies_train_set.fa.gz'))
+```
+
+And, finally, load the metadata
+
+```{r, eval=params$process}
+metadata_df <- read.table(file = metadata_file, sep = "\t", header = TRUE, row.names = 1)
+```
+
+<br>
+
+### Run the DADA2 workflow
+
+List forwards and reverse `.fastq.gz` files, given that files were generated to follow the format: `*_R1_001.fastq.gz` and `*_R2_001.fastq.gz`. Then we extract the sample name (assuming filenames have format: `SAMPLENAME_R*_001.fastq.gz`).
+
+```{r, eval=params$process}
+fnFs <- sort(list.files(indir, pattern="_R1_001.fastq.gz", full.names = TRUE))
+fnRs <- sort(list.files(indir, pattern="_R2_001.fastq.gz", full.names = TRUE))
+sampleIDs <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+```
+
+Inspect the read quality profiles. First forward.
+
+```{r, eval=params$process}
+plotQualityProfile(fnFs[1])
+```
+
+And, then, reverse.
+
+```{r, eval=params$process}
+plotQualityProfile(fnRs[1:2])
+```
+
+Then we can define the file path for filtered files and define filenames.
+
+```{r, eval=params$process}
+filtFs <- file.path(filter_dir, paste0(sampleIDs, "_F_filt.fastq.gz"))
+filtRs <- file.path(filter_dir, paste0(sampleIDs, "_R_filt.fastq.gz"))
+names(filtFs) <- sampleIDs
+names(filtRs) <- sampleIDs
+```
+
+Filter and trim raw reads.
+
+```{r, eval=params$process}
+filter_results <- filterAndTrim(fnFs, filtFs, fnRs, filtRs,
+                                truncLen = c(250,250),
+                                rm.phix = FALSE,
+                                multithread = n_cores, 
+                                compress = FALSE, verbose = TRUE)
+```
+
+<details>
+<summary>
+&nbsp; `r icons::fontawesome("info-circle")` &nbsp; **What can be changed?** (Click here)
+</summary>
+
+`compress = TRUE` (Optional). Default TRUE. If TRUE, the output fastq file(s) are gzipped. 
+
+`truncQ = 2` (Optional). Default 2. Truncate reads at the first instance of a quality score less than or equal to `truncQ`.
+
+`truncLen = 0` (Optional). Default 0 (no truncation). Truncate reads after `truncLen` bases. Reads shorter than this are discarded.
+
+`trimLeft = 0` (Optional). Default 0. The number of nucleotides to remove from the start of each read. If both `truncLen` and `trimLeft` are provided, filtered reads will have length `truncLen`-`trimLeft`.
+
+`trimRight = 0` (Optional). Default 0. The number of nucleotides to remove from the end of each read. If both `truncLen` and `trimRight` are provided, truncation will be performed after `trimRight` is enforced.
+
+`maxLen = Inf` (Optional). Default Inf (no maximum). Remove reads with length greater than `maxLen.` `maxLen` is enforced before trimming and truncation.
+
+`minLen = 20` (Optional). Default 20. Remove reads with length less than `minLen.` `minLen` is enforced after trimming and truncation.
+
+`maxN = 0` (Optional). Default 0. After truncation, sequences with more than maxN Ns will be discarded. Note that dada does not allow Ns.
+
+`minQ = 0` (Optional). Default 0. After truncation, reads contain a quality score less than minQ will be discarded.
+
+`maxEE = Inf` (Optional). Default `Inf` (no EE filtering). After truncation, reads with higher than maxEE "expected errors" will be discarded. Expected errors are calculated from the nominal definition of the quality score: EE = sum(10^(-Q/10))
+
+`rm.phix = TRUE` (Optional). Default TRUE. If TRUE, discard reads that match against the phiX genome, as determined by `isPhiX`.
+
+</details>
+
+<br>
+
+Check how many reads have been filtered.
+
+```{r, eval=params$process}
+filter_results
+```
+
+Remove those samples that have been completely filtered out.
+
+```{r, eval=params$process}
+exists <- file.exists(fnFs) & file.exists(filtFs)
+filtFs <- filtFs[exists]
+exists <- file.exists(fnRs) & file.exists(filtRs)
+filtRs <- filtRs[exists]
+```
+
+Learn error rates.
+
+```{r, eval=params$process}
+errF <- learnErrors(filtFs, multithread = n_cores, verbose = TRUE)
+errR <- learnErrors(filtRs, multithread = n_cores, verbose = TRUE)
+```
+
+Run sample inference.
+
+```{r, eval=params$process}
+dadaFs <- dada(filtFs, err=errF, pool = FALSE, multithread = n_cores)
+dadaRs <- dada(filtRs, err=errR, pool = FALSE, multithread = n_cores)
+```
+
+<details>
+<summary>
+&nbsp; `r icons::fontawesome("info-circle")` &nbsp; **What can be changed?** (Click here)
+</summary>
+
+`pool` (Optional). If `pool = TRUE`, the algorithm will pool together all samples prior to sample inference. If `pool = FALSE`, sample inference is performed on each sample individually. If `pool = "pseudo"`, the algorithm will perform pseudo-pooling between individually processed samples. 
+
+`priors` (Optional). The priors argument provides a set of sequences for which there is prior information suggesting they may truly exist, i.e. are not errors. The abundance p-value of dereplicated sequences that exactly match one of the priors are calculated without conditioning on presence, allowing singletons to be detected, and are compared to a reduced threshold 'OMEGA_P' when forming new partitions.
+
+</details>
+
+<br>
+
+Merge paired reads.
+
+```{r, eval=params$process}
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+```
+
+<details>
+<summary>
+&nbsp; `r icons::fontawesome("info-circle")` &nbsp; **What can be changed?** (Click here)
+</summary>
+
+`minOverlap = 12` (Optional). Default 12. The minimum length of the overlap required for merging the forward and reverse reads.
+
+`maxMismatch = 0` (Optional). Default 0. The maximum mismatches allowed in the overlap region.
+
+</details>
+
+<br>
+
+Construct ASV table.
+
+```{r, eval=params$process}
+seqtab_all <- makeSequenceTable(mergers)
+```
+
+<details>
+<summary>
+&nbsp; `r icons::fontawesome("info-circle")` &nbsp; **What can be changed?** (Click here)
+</summary>
+
+`orderBy` (Optional). `character(1)`. Default "abundance". Specifies how the sequences (columns) of the returned table should be ordered (decreasing). Valid values: "abundance", "nsamples", NULL.
+
+</details>
+
+<br>
+
+Remove chimeras.
+
+```{r, eval=params$process}
+seqtab <- removeBimeraDenovo(seqtab_all,
+                             method = 'consensus',
+                             multithread = n_cores,
+                             verbose = TRUE)
+```
+
+<details>
+<summary>
+&nbsp; `r icons::fontawesome("info-circle")` &nbsp; **What can be changed?** (Click here)
+</summary>
+
+`method` (Optional). Default is "consensus". Only has an effect if a sequence table is provided. If `pooled`: The samples in the sequence table are all pooled together for bimera identification (`isBimeraDenovo`). If `consensus`: The samples in a sequence table are independently checked for bimeras, and a consensus decision on each sequence variant is made (`isBimeraDenovoTable`). If `per-sample`: The samples in a sequence table are independently checked for bimeras, and sequence variants are removed (zeroed-out) from samples independently (`isBimeraDenovo`).
+
+</details>
+
+<br>
+
+Track reads through the pipeline.
+
+```{r, eval=params$process}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(filter_results, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab))
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track) <- sampleIDs
+track
+```
+
+Assign taxonomy.
+
+```{r, eval=params$process}
+taxa <- assignTaxonomy(seqtab, tax_key, multithread = n_cores)
+colnames(taxa) <- c('Kingdom', 'Phylum', 'Class', 'Order', 'Family', 'Genus', "Species")
+```
+
+Rename ASVs (optional).
+
+```{r, eval=params$process}
+otutable <- seqtab
+colnames(otutable) <- paste('ASV', 1:ncol(seqtab), sep = '_')
+row.names(taxa) <- paste('ASV', 1:ncol(seqtab), sep = '_')
+```
+
+Generate `.fasta` file with ASVs.
+
+```{r, eval=params$process}
+asv_seqs <- colnames(seqtab)
+asv_headers <- paste('ASV', 1:ncol(seqtab), sep = '_')
+asv_fasta <- c(rbind(asv_headers, asv_seqs))
+write(asv_fasta, file = file.path(outdir, 'ASVs.fa')) #optional
+```
+
+Align sequences.
+
+```{r, eval=params$process}
+seqs <- getSequences(seqtab)
+names(seqs) <- asv_headers 
+alignment <- AlignSeqs(DNAStringSet(seqs), anchor=NA, processors = n_cores)
+phang.align <- phyDat(as(alignment, "matrix"), type="DNA")
+write.phyDat(phang.align, file = file.path(outdir, 'alignment.fasta'), format="fasta") #optional
+```
+
+Build phylogenetic tree with ASVs.
+
+```{r, eval=params$process}
+dna_dist <- dist.ml(phang.align, model="JC69")
+asv_UPGMA <- upgma(dna_dist)
+fit <- pml(asv_UPGMA, phang.align)
+fitJC <- optim.pml(fit, model = "JC", rearrangement = "stochastic")
+tree <- bootstrap.pml(fitJC, bs=1, optNni=TRUE, multicore=TRUE, control = pml.control(trace=0))
+```
+
+<br>
+
+### Generate phyloseq object
+
+```{r, eval=params$process}
+ps <- phyloseq(otu_table(otutable, taxa_are_rows = FALSE),
+                   sample_data(metadata_df),
+                   tax_table(taxa),
+                   tree[[1]])
+ps
+```
+
+Clean environment and save it.
+
+```{r, eval=params$process}
+rm(list=setdiff(ls(), c("ps")))
+save.image(file = asv.final.table)
+```
+
+```{r, eval=params$process}
+sessionInfo()
+```
