@@ -14,6 +14,67 @@ klippy::klippy()
 
 <br>
 
+----
+
+## Organize folders and files
+
+First we need to create a folder named `project` with this structure:
+
+```
+project
+  |___data
+```
+
+Now, we can move and move all our `.fastq.gz` to the folder named `data`, create a `.txt` file with the metadata and a empty `R` file where we will store our code. The project folder will look like this:
+
+```
+project
+|___data
+|     | file1.fastq.gz
+|     | file2.fastq.gz
+|     | ....... .fastq.gz
+|
+|___metadata.txt
+|___rcode.R
+```
+
+<br>
+
+### Download the data
+
+Normally, you would just copy the data from your long-term storage device to the folder `project/data`. In this case we will download the data from GitHub. 
+
+[Download this file](https://downgit.github.io/#/home?url=https://github.com/amalacrino/files_tutorials/tree/main/WWU_tutorial_2/data) and unzip it inside the folder `project/data`.
+
+<br>
+
+### Create the metadata file
+
+Within the project folder, you need to save a file named `metadata.txt` (tab-separated values). The structure of this file should look like this:
+
+```
+SampleID    Factor1       Factor2   ...   FactorN
+S1          Control       Root      ...
+S2          Treatment     Root      ...
+```
+
+For this tutorial, you can download one from [here](https://raw.githubusercontent.com/amalacrino/files_tutorials/main/WWU_tutorial_2/metadata.txt) and place it inside the `project/` folder. 
+
+<br>
+
+### Step 3. Create a R file
+
+The quickest way to do so is to:
+
+  - Open R Studio
+  - Click on `File/New File/ R Script`
+  - Click on `File/Save`
+  - Navigate to your project folder and save it
+  - Close R Studio
+  - Open the file you just saved. In this way R Studio will open the file with that relative path already set, so you do not have to worry about changing your code every time you move the folder or when starting a new project.
+  
+<br>
+
 ### Load packages
 
 ```{r, eval=params$process, warning=FALSE, message=FALSE}
@@ -70,43 +131,34 @@ metadata_df <- read.table(file = metadata_file, sep = "\t", header = TRUE, row.n
 
 ### Run the DADA2 workflow
 
-List forwards and reverse `.fastq.gz` files, given that files were generated to follow the format: `*_R1_001.fastq.gz` and `*_R2_001.fastq.gz`. Then we extract the sample name (assuming filenames have format: `SAMPLENAME_R*_001.fastq.gz`).
+List `.fastq.gz` files, assuming filenames have format: `SAMPLENAME.fastq`.
 
 ```{r, eval=params$process}
-fnFs <- sort(list.files(indir, pattern="_R1_001.fastq.gz", full.names = TRUE))
-fnRs <- sort(list.files(indir, pattern="_R2_001.fastq.gz", full.names = TRUE))
-sampleIDs <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+fastqs_raw <- sort(list.files(indir, pattern = '.fastq', full.names = TRUE))
+sampleIDs <- sub("*.fastq", "", basename(fastqs_raw))
 ```
 
-Inspect the read quality profiles. First forward.
+Inspect the read quality profiles.
 
 ```{r, eval=params$process}
-plotQualityProfile(fnFs[1])
-```
-
-And, then, reverse.
-
-```{r, eval=params$process}
-plotQualityProfile(fnRs[1:2])
+plotQualityProfile(fastqs_raw[1])
 ```
 
 Then we can define the file path for filtered files and define filenames.
 
 ```{r, eval=params$process}
-filtFs <- file.path(filter_dir, paste0(sampleIDs, "_F_filt.fastq.gz"))
-filtRs <- file.path(filter_dir, paste0(sampleIDs, "_R_filt.fastq.gz"))
-names(filtFs) <- sampleIDs
-names(filtRs) <- sampleIDs
+fastqs_filt <- file.path(filter_dir, paste0(sampleIDs, '.filt.fastq'))
+names(fastqs_filt) <- sampleIDs
 ```
 
 Filter and trim raw reads.
 
 ```{r, eval=params$process}
-filter_results <- filterAndTrim(fnFs, filtFs, fnRs, filtRs,
-                                truncLen = c(250,250),
+filter_results <- filterAndTrim(fastqs_raw, fastqs_filt,
+                                truncLen = 250,
                                 rm.phix = FALSE,
                                 multithread = n_cores, 
-                                compress = FALSE, verbose = TRUE)
+                                compress = FALSE, verbose = TRUE) 
 ```
 
 <details>
@@ -149,62 +201,34 @@ filter_results
 Remove those samples that have been completely filtered out.
 
 ```{r, eval=params$process}
-exists <- file.exists(fnFs) & file.exists(filtFs)
-filtFs <- filtFs[exists]
-exists <- file.exists(fnRs) & file.exists(filtRs)
-filtRs <- filtRs[exists]
+exists <- file.exists(fastqs_raw) & file.exists(fastqs_filt)
+fastqs_filt <- fastqs_filt[exists]
 ```
 
 Learn error rates.
 
 ```{r, eval=params$process}
-errF <- learnErrors(filtFs, multithread = n_cores, verbose = TRUE)
-errR <- learnErrors(filtRs, multithread = n_cores, verbose = TRUE)
+set.seed(100)
+err <- learnErrors(fastqs_filt, nbases = 1e8, multithread = n_cores, verbose = TRUE, randomize=TRUE)
 ```
 
 Run sample inference.
 
 ```{r, eval=params$process}
-dadaFs <- dada(filtFs, err=errF, pool = FALSE, multithread = n_cores)
-dadaRs <- dada(filtRs, err=errR, pool = FALSE, multithread = n_cores)
+dds <- vector("list", length(sampleIDs))
+names(dds) <- sampleIDs
+
+for(sam in sampleIDs) {
+  cat("Processing of file", sam, "begins on:", format(Sys.time(), "%c"), "\n")
+  derep <- derepFastq(fastqs_filt[[sam]])
+  dds[[sam]] <- dada(derep, err=err, multithread=n_cores)
+}
 ```
-
-<details>
-<summary>
-&nbsp; `r icons::fontawesome("info-circle")` &nbsp; **What can be changed?** (Click here)
-</summary>
-
-`pool` (Optional). If `pool = TRUE`, the algorithm will pool together all samples prior to sample inference. If `pool = FALSE`, sample inference is performed on each sample individually. If `pool = "pseudo"`, the algorithm will perform pseudo-pooling between individually processed samples. 
-
-`priors` (Optional). The priors argument provides a set of sequences for which there is prior information suggesting they may truly exist, i.e. are not errors. The abundance p-value of dereplicated sequences that exactly match one of the priors are calculated without conditioning on presence, allowing singletons to be detected, and are compared to a reduced threshold 'OMEGA_P' when forming new partitions.
-
-</details>
-
-<br>
-
-Merge paired reads.
-
-```{r, eval=params$process}
-mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
-```
-
-<details>
-<summary>
-&nbsp; `r icons::fontawesome("info-circle")` &nbsp; **What can be changed?** (Click here)
-</summary>
-
-`minOverlap = 12` (Optional). Default 12. The minimum length of the overlap required for merging the forward and reverse reads.
-
-`maxMismatch = 0` (Optional). Default 0. The maximum mismatches allowed in the overlap region.
-
-</details>
-
-<br>
 
 Construct ASV table.
 
 ```{r, eval=params$process}
-seqtab_all <- makeSequenceTable(mergers)
+seqtab_all <- makeSequenceTable(dds)
 ```
 
 <details>
@@ -242,8 +266,8 @@ Track reads through the pipeline.
 
 ```{r, eval=params$process}
 getN <- function(x) sum(getUniques(x))
-track <- cbind(filter_results, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab))
-colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+track <- cbind(filter_results, sapply(dds, getN), rowSums(seqtab))
+colnames(track) <- c("input", "filtered", "denoised", "nonchim")
 rownames(track) <- sampleIDs
 track
 ```
@@ -251,7 +275,17 @@ track
 Assign taxonomy.
 
 ```{r, eval=params$process}
-taxa <- assignTaxonomy(seqtab, tax_key, multithread = n_cores)
+df <- as.data.frame(t(seqtab))
+n <- 1000 #number of ASVs for each block
+nr <- nrow(df)
+a <- split(df, rep(1:ceiling(nr/n), each=n, length.out=nr))
+dds.taxa <- vector("list", length(a))
+for(i in 1:length(a)) {
+  cat("Processing part", i, "of", length(a), "begins on:", format(Sys.time(), "%c"), "\n")
+  tmp <- t(a[[i]])
+  dds.taxa[[i]] <- assignTaxonomy(tmp, tax_key, multithread = n_cores)
+}
+taxa <- do.call("rbind", dds.taxa)
 colnames(taxa) <- c('Kingdom', 'Phylum', 'Class', 'Order', 'Family', 'Genus', "Species")
 ```
 

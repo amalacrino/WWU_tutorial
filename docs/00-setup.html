@@ -339,13 +339,19 @@ div.tocify {
 </li>
 <li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
-    Tutorial
+    Data processing
      
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="01-DADA2.html">DADA2 tutorial - PE reads</a>
+      <a href="01-PE.html">Paired-ends (PE) reads</a>
+    </li>
+    <li>
+      <a href="02-SE.html">Single-end (SE) reads</a>
+    </li>
+    <li>
+      <a href="03-BD.html">Big Data</a>
     </li>
     <li class="divider"></li>
   </ul>
@@ -391,50 +397,6 @@ install.packages(&quot;DECIPHER&quot;)
 install.packages(&quot;phangorn&quot;)
 install.packages(&quot;ape&quot;)
 install.packages(&quot;seqinr&quot;)</code></pre>
-<hr />
-</div>
-<div id="organize-folders-and-files" class="section level2">
-<h2>Organize folders and files</h2>
-<p>First we need to create a folder named <code>project</code> with this structure:</p>
-<pre><code>project
-  |___data</code></pre>
-<p>Now, we can move and move all our <code>.fastq.gz</code> to the folder named <code>data</code>, create a <code>.txt</code> file with the metadata and a empty <code>R</code> file where we will store our code. The project folder will look like this:</p>
-<pre><code>project
-|___data
-|     | file1_R1.fastq.gz
-|     | file1_R2.fastq.gz
-|     | ....... .fastq.gz
-|
-|___metadata.txt
-|___rcode.R</code></pre>
-<p><br></p>
-<div id="step-1.-download-the-data" class="section level3">
-<h3>Step 1. Download the data</h3>
-<p>Normally, you would just copy the data from your long-term storage device to the folder <code>project/data</code>. In this case we will download the data from GitHub.</p>
-<p><a href="https://downgit.github.io/#/home?url=https://github.com/amalacrino/files_tutorials/tree/main/WWU_tutorial_1/data">Download this file</a> and unzip it inside the folder <code>project/data</code>.</p>
-<p><br></p>
-</div>
-<div id="step-2.-create-the-metadata-file" class="section level3">
-<h3>Step 2. Create the metadata file</h3>
-<p>Within the project folder, you need to save a file named <code>metadata.txt</code> (tab-separated values). The structure of this file should look like this:</p>
-<pre><code>SampleID    Factor1       Factor2   ...   FactorN
-S1          Control       Root      ...
-S2          Treatment     Root      ...</code></pre>
-<p>For this tutorial, you can download one from <a href="https://raw.githubusercontent.com/amalacrino/files_tutorials/main/WWU_tutorial_1/metadata.txt">here</a> and place it inside the <code>project/</code> folder.</p>
-<p><br></p>
-</div>
-<div id="step-3.-create-a-r-file" class="section level3">
-<h3>Step 3. Create a R file</h3>
-<p>The quickest way to do so is to:</p>
-<ul>
-<li>Open R Studio</li>
-<li>Click on <code>File/New File/ R Script</code></li>
-<li>Click on <code>File/Save</code></li>
-<li>Navigate to your project folder and save it</li>
-<li>Close R Studio</li>
-<li>Open the file you just saved. In this way R Studio will open the file with that relative path already set, so you do not have to worry about changing your code every time you move the folder or when starting a new project.</li>
-</ul>
-</div>
 </div>
 
 

@@ -12,10 +12,12 @@ navbar:
       icon: fa-gear
       href: "00-setup.html"
       
-    - text: "Tutorial"
+    - text: "Data processing"
       menu:
-        - text: "DADA2 tutorial - PE reads"
-          href: "01-DADA2.html"
+        - text: "Paired-ends (PE) reads"
+          href: "01-PE.html"
+        - text: "Single-end (SE) reads"
+          href: "02-SE.html"
+        - text: "Big Data"
+          href: "03-BD.html"
         - text: "---------"
-        #- text: "Data analysis"
-        #  href: "02-data_analysis.html"
