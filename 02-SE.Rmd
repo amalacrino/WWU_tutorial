@@ -16,7 +16,7 @@ klippy::klippy()
 
 ----
 
-## Organize folders and files
+### Organize folders and files
 
 First we need to create a folder named `project` with this structure:
 
