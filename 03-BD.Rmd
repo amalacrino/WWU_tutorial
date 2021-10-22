@@ -1,5 +1,5 @@
 ---
-title: "DADA2 tutorial - PE reads"
+title: "DADA2 tutorial - Big Data (SE) reads"
 output:
   rmarkdown::html_document:
     toc: true
@@ -62,7 +62,7 @@ For this tutorial, you can download one from [here](https://raw.githubuserconten
 
 <br>
 
-### Step 3. Create a R file
+### Create a R file
 
 The quickest way to do so is to:
 
