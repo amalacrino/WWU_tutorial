@@ -47,6 +47,14 @@ library("vegan")
 
 <br>
 
+### Load data
+
+```{r, eval=params$process}
+load(file = 'ASV_table.rds')
+```
+
+<br>
+
 ### Explore the raw data
 
 ```{r, eval=params$process}
