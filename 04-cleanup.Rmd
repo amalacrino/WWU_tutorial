@@ -1,0 +1,181 @@
+---
+title: "Data cleanup"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+params:
+  process: FALSE
+---
+
+```{r klippy, echo=FALSE, include=TRUE}
+klippy::klippy()
+```
+
+<br>
+
+----
+
+### Download the data and organize it
+
+First we need to create a folder named `project` with this structure:
+
+```
+project
+  |___analysis.Rmd
+  |___ASV_table.rds
+```
+
+
+The ASV table for this tutorial is available [here](https://github.com/amalacrino/files_tutorials/blob/main/WWU_tutorial_3/ASV_table.rds).
+
+<br>
+
+### Load packages
+
+```{r, eval=params$process, warning=FALSE, message=FALSE}
+library("dplyr")
+library("phyloseq")
+library("DESeq2")
+library("decontam")
+library("microbiome")
+library("ggplot2")
+library("data.table")
+library("limma")
+library("vegan")
+```
+
+<br>
+
+### Explore the raw data
+
+```{r, eval=params$process}
+metadata <- data.frame(sample_data(ps))
+asv.table <- data.frame(t(otu_table(ps)))
+tax.table <- data.frame(tax_table(ps))
+```
+
+<br>
+
+### Remove plastidial reads
+
+```{r, eval=params$process}
+ps <- subset_taxa(ps, Class != "Chloroplast")
+ps <- subset_taxa(ps, Order != "Chloroplast")
+ps <- subset_taxa(ps, Family != "Mitochondria")
+```
+
+<br>
+
+### Remove possible contaminants
+
+```{r, eval=params$process}
+sample_data(ps)$is.neg <- sample_data(ps)$Variety == "Control"
+contamdf.prev <- isContaminant(ps, method="prevalence", neg="is.neg", threshold = 0.05)
+cont.remove <- subset(contamdf.prev, contaminant == "TRUE")
+cont.remove <- row.names(cont.remove)
+allTaxa = taxa_names(ps)
+allTaxa <- allTaxa[!(allTaxa %in% cont.remove)]
+ps <-  prune_taxa(allTaxa, ps)
+ps <- subset_samples(ps, Variety != "Control")
+```
+
+<br>
+
+### Remove singletons
+
+```{r, eval=params$process}
+ps <- filter_taxa(ps, function (x) {sum(x > 0) > 1}, prune=TRUE)
+```
+
+<br>
+
+### Remove samples with low reads
+
+```{r, eval=params$process}
+ps <- prune_samples(sample_sums(ps) >= 1000, ps)
+```
+
+<br>
+
+### Create a phyloseq object with normalized data
+
+```{r, eval=params$process}
+GM <- ps
+otu_table(GM) <- otu_table(GM)+1
+diagdds = phyloseq_to_deseq2(GM, ~ 1)
+ts = counts(diagdds)
+geoMeans = apply(ts, 1, function(row) if (all(row == 0)) 0 else exp(mean(log(row[row != 0]))))
+diagdds = estimateSizeFactors(diagdds, geoMeans=geoMeans)
+diagdds = estimateDispersions(diagdds)
+diagvst = getVarianceStabilizedData(diagdds)
+diagdds.c <- removeBatchEffect(diagvst)
+diagdds.c[diagdds.c<0] <- 0
+ps.norm <- ps
+otu_table(ps.norm) <- otu_table(diagdds.c, taxa_are_rows = TRUE)
+ps.norm
+```
+
+<br>
+
+### Check sequencing depth
+
+```{r, eval=params$process}
+sdt = data.table(as(sample_data(ps), "data.frame"),
+                 TotalReads = sample_sums(ps), keep.rownames = TRUE)
+setnames(sdt, "rn", "SampleID")
+sdt
+```
+
+<br>
+
+### Print the rarefaction curve
+
+```{r, eval=params$process}
+rarecurve(otu_table(ps), step=200, cex=0.5, label = F)
+```
+
+<br>
+
+### Check how many samples are left after filtering
+
+```{r, eval=params$process}
+sample_data(ps) %>%
+  group_by(Sample_type, Variety) %>%
+  summarise(nr_Samples = n())
+```
+
+<br>
+
+### Plot relative abundance
+
+```{r, eval=params$process}
+glom <- microbiome::aggregate_taxa(ps.norm, "Genus")
+glom <- microbiome::transform(glom, "compositional")
+dat <- psmelt(glom)
+filt.gen <- dat %>% group_by(Genus) %>% summarize(mean = mean(Abundance)) %>% filter(mean <= 0.01)
+dat <- subset(dat, !(OTU %in% filt.gen$Genus))
+dat <- dat %>% group_by(Sample_type, Genus) %>% summarize(cs = mean(Abundance)) %>% mutate(cs = cs/sum(cs)) 
+
+taxa_plot <- ggplot(dat, aes(x = Sample_type, y = cs, fill = Genus)) +
+                          theme_bw(base_size = 14) +
+                          geom_bar(stat="identity") +
+                          labs(y = "Relative proportion") +
+                          theme(axis.title.x=element_blank(),
+                                axis.text.x = element_text(color="black", angle = 45, hjust = 1),
+                                axis.text.y = element_text(color="black"),
+                                axis.title.y = element_text(color="black"),
+                                panel.grid = element_blank(),
+                                strip.background = element_blank(),
+                                strip.text = element_blank()) +
+                          scale_y_continuous(labels = function(x) paste0(x*100, "%"))
+taxa_plot
+```
+
+
+
+
+
+
+
+

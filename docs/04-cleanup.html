@@ -11,7 +11,7 @@
 
 
 
-<title>Setup</title>
+<title>Data cleanup</title>
 
 <script src="site_libs/header-attrs-2.10/header-attrs.js"></script>
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
@@ -379,7 +379,7 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Setup</h1>
+<h1 class="title toc-ignore">Data cleanup</h1>
 
 </div>
 
@@ -389,25 +389,124 @@ div.tocify {
   addKlippy('left', 'top', 'auto', '1', 'Copy code', 'Copied!');
 </script>
 <p><br></p>
-<div id="software-installation" class="section level2">
-<h2>Software installation</h2>
-<p>Make sure you have installed:</p>
-<ul>
-<li><strong>R</strong> – <a href="https://www.r-project.org/">link</a></li>
-<li><strong>R studio</strong> – <a href="https://www.rstudio.com/">link</a></li>
-</ul>
 <hr />
+<div id="download-the-data-and-organize-it" class="section level3">
+<h3>Download the data and organize it</h3>
+<p>First we need to create a folder named <code>project</code> with this structure:</p>
+<pre><code>project
+  |___analysis.Rmd
+  |___ASV_table.rds</code></pre>
+<p>The ASV table for this tutorial is available <a href="https://github.com/amalacrino/files_tutorials/blob/main/WWU_tutorial_3/ASV_table.rds">here</a>.</p>
+<p><br></p>
 </div>
-<div id="r-packages-installation" class="section level2">
-<h2>R packages installation</h2>
-<p>Open R studio and run the following lines to install the packages we are going to use during this tutorial.</p>
-<pre class="r"><code>install.packages(&quot;tidyverse&quot;)
-install.packages(&quot;dada2&quot;)
-install.packages(&quot;phyloseq&quot;)
-install.packages(&quot;DECIPHER&quot;)
-install.packages(&quot;phangorn&quot;)
-install.packages(&quot;ape&quot;)
-install.packages(&quot;seqinr&quot;)</code></pre>
+<div id="load-packages" class="section level3">
+<h3>Load packages</h3>
+<pre class="r"><code>library(&quot;dplyr&quot;)
+library(&quot;phyloseq&quot;)
+library(&quot;DESeq2&quot;)
+library(&quot;decontam&quot;)
+library(&quot;microbiome&quot;)
+library(&quot;ggplot2&quot;)
+library(&quot;data.table&quot;)
+library(&quot;limma&quot;)
+library(&quot;vegan&quot;)</code></pre>
+<p><br></p>
+</div>
+<div id="explore-the-raw-data" class="section level3">
+<h3>Explore the raw data</h3>
+<pre class="r"><code>metadata &lt;- data.frame(sample_data(ps))
+asv.table &lt;- data.frame(t(otu_table(ps)))
+tax.table &lt;- data.frame(tax_table(ps))</code></pre>
+<p><br></p>
+</div>
+<div id="remove-plastidial-reads" class="section level3">
+<h3>Remove plastidial reads</h3>
+<pre class="r"><code>ps &lt;- subset_taxa(ps, Class != &quot;Chloroplast&quot;)
+ps &lt;- subset_taxa(ps, Order != &quot;Chloroplast&quot;)
+ps &lt;- subset_taxa(ps, Family != &quot;Mitochondria&quot;)</code></pre>
+<p><br></p>
+</div>
+<div id="remove-possible-contaminants" class="section level3">
+<h3>Remove possible contaminants</h3>
+<pre class="r"><code>sample_data(ps)$is.neg &lt;- sample_data(ps)$Variety == &quot;Control&quot;
+contamdf.prev &lt;- isContaminant(ps, method=&quot;prevalence&quot;, neg=&quot;is.neg&quot;, threshold = 0.05)
+cont.remove &lt;- subset(contamdf.prev, contaminant == &quot;TRUE&quot;)
+cont.remove &lt;- row.names(cont.remove)
+allTaxa = taxa_names(ps)
+allTaxa &lt;- allTaxa[!(allTaxa %in% cont.remove)]
+ps &lt;-  prune_taxa(allTaxa, ps)
+ps &lt;- subset_samples(ps, Variety != &quot;Control&quot;)</code></pre>
+<p><br></p>
+</div>
+<div id="remove-singletons" class="section level3">
+<h3>Remove singletons</h3>
+<pre class="r"><code>ps &lt;- filter_taxa(ps, function (x) {sum(x &gt; 0) &gt; 1}, prune=TRUE)</code></pre>
+<p><br></p>
+</div>
+<div id="remove-samples-with-low-reads" class="section level3">
+<h3>Remove samples with low reads</h3>
+<pre class="r"><code>ps &lt;- prune_samples(sample_sums(ps) &gt;= 1000, ps)</code></pre>
+<p><br></p>
+</div>
+<div id="create-a-phyloseq-object-with-normalized-data" class="section level3">
+<h3>Create a phyloseq object with normalized data</h3>
+<pre class="r"><code>GM &lt;- ps
+otu_table(GM) &lt;- otu_table(GM)+1
+diagdds = phyloseq_to_deseq2(GM, ~ 1)
+ts = counts(diagdds)
+geoMeans = apply(ts, 1, function(row) if (all(row == 0)) 0 else exp(mean(log(row[row != 0]))))
+diagdds = estimateSizeFactors(diagdds, geoMeans=geoMeans)
+diagdds = estimateDispersions(diagdds)
+diagvst = getVarianceStabilizedData(diagdds)
+diagdds.c &lt;- removeBatchEffect(diagvst)
+diagdds.c[diagdds.c&lt;0] &lt;- 0
+ps.norm &lt;- ps
+otu_table(ps.norm) &lt;- otu_table(diagdds.c, taxa_are_rows = TRUE)
+ps.norm</code></pre>
+<p><br></p>
+</div>
+<div id="check-sequencing-depth" class="section level3">
+<h3>Check sequencing depth</h3>
+<pre class="r"><code>sdt = data.table(as(sample_data(ps), &quot;data.frame&quot;),
+                 TotalReads = sample_sums(ps), keep.rownames = TRUE)
+setnames(sdt, &quot;rn&quot;, &quot;SampleID&quot;)
+sdt</code></pre>
+<p><br></p>
+</div>
+<div id="print-the-rarefaction-curve" class="section level3">
+<h3>Print the rarefaction curve</h3>
+<pre class="r"><code>rarecurve(otu_table(ps), step=200, cex=0.5, label = F)</code></pre>
+<p><br></p>
+</div>
+<div id="check-how-many-samples-are-left-after-filtering" class="section level3">
+<h3>Check how many samples are left after filtering</h3>
+<pre class="r"><code>sample_data(ps) %&gt;%
+  group_by(Sample_type, Variety) %&gt;%
+  summarise(nr_Samples = n())</code></pre>
+<p><br></p>
+</div>
+<div id="plot-relative-abundance" class="section level3">
+<h3>Plot relative abundance</h3>
+<pre class="r"><code>glom &lt;- microbiome::aggregate_taxa(ps.norm, &quot;Genus&quot;)
+glom &lt;- microbiome::transform(glom, &quot;compositional&quot;)
+dat &lt;- psmelt(glom)
+filt.gen &lt;- dat %&gt;% group_by(Genus) %&gt;% summarize(mean = mean(Abundance)) %&gt;% filter(mean &lt;= 0.01)
+dat &lt;- subset(dat, !(OTU %in% filt.gen$Genus))
+dat &lt;- dat %&gt;% group_by(Sample_type, Genus) %&gt;% summarize(cs = mean(Abundance)) %&gt;% mutate(cs = cs/sum(cs)) 
+
+taxa_plot &lt;- ggplot(dat, aes(x = Sample_type, y = cs, fill = Genus)) +
+                          theme_bw(base_size = 14) +
+                          geom_bar(stat=&quot;identity&quot;) +
+                          labs(y = &quot;Relative proportion&quot;) +
+                          theme(axis.title.x=element_blank(),
+                                axis.text.x = element_text(color=&quot;black&quot;, angle = 45, hjust = 1),
+                                axis.text.y = element_text(color=&quot;black&quot;),
+                                axis.title.y = element_text(color=&quot;black&quot;),
+                                panel.grid = element_blank(),
+                                strip.background = element_blank(),
+                                strip.text = element_blank()) +
+                          scale_y_continuous(labels = function(x) paste0(x*100, &quot;%&quot;))
+taxa_plot</code></pre>
 </div>
 
 

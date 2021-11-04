@@ -20,3 +20,8 @@ navbar:
           href: "02-SE.html"
         - text: "Big Data"
           href: "03-BD.html"
+          
+    - text: "Data analysis"
+      menu:
+        - text: "Cleanup"
+          href: "04-cleanup.html"
