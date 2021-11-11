@@ -11,7 +11,7 @@
 
 
 
-<title>Setup</title>
+<title>Taxonomy</title>
 
 <script src="site_libs/header-attrs-2.10/header-attrs.js"></script>
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
@@ -388,7 +388,7 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Setup</h1>
+<h1 class="title toc-ignore">Taxonomy</h1>
 
 </div>
 
@@ -398,25 +398,78 @@ div.tocify {
   addKlippy('left', 'top', 'auto', '1', 'Copy code', 'Copied!');
 </script>
 <p><br></p>
-<div id="software-installation" class="section level2">
-<h2>Software installation</h2>
-<p>Make sure you have installed:</p>
-<ul>
-<li><strong>R</strong> – <a href="https://www.r-project.org/">link</a></li>
-<li><strong>R studio</strong> – <a href="https://www.rstudio.com/">link</a></li>
-</ul>
 <hr />
+<div id="plot-taxa" class="section level3">
+<h3>Plot taxa</h3>
+<pre class="r"><code>glom &lt;- microbiome::aggregate_taxa(ps.norm, &quot;Genus&quot;)
+glom &lt;- microbiome::transform(glom, &quot;compositional&quot;)
+dat &lt;- psmelt(glom)
+filt.gen &lt;- dat %&gt;% group_by(Genus) %&gt;% summarize(mean = mean(Abundance)) %&gt;% filter(mean &lt;= 0.01)
+dat &lt;- subset(dat, !(OTU %in% filt.gen$Genus))
+dat &lt;- dat %&gt;% group_by(Sample_type, Genus) %&gt;% summarize(cs = mean(Abundance)) %&gt;% mutate(cs = cs/sum(cs)) 
+
+taxa_plot &lt;- ggplot(dat, aes(x = Sample_type, y = cs, fill = Genus)) +
+                          theme_bw(base_size = 14) +
+                          geom_bar(stat=&quot;identity&quot;) +
+                          labs(y = &quot;Relative proportion&quot;) +
+                          theme(axis.title.x=element_blank(),
+                                axis.text.x = element_text(color=&quot;black&quot;, angle = 45, hjust = 1),
+                                axis.text.y = element_text(color=&quot;black&quot;),
+                                axis.title.y = element_text(color=&quot;black&quot;),
+                                panel.grid = element_blank(),
+                                strip.background = element_blank(),
+                                strip.text = element_blank()) +
+                          scale_y_continuous(labels = function(x) paste0(x*100, &quot;%&quot;))
+taxa_plot</code></pre>
+<p><br></p>
 </div>
-<div id="r-packages-installation" class="section level2">
-<h2>R packages installation</h2>
-<p>Open R studio and run the following lines to install the packages we are going to use during this tutorial.</p>
-<pre class="r"><code>install.packages(&quot;tidyverse&quot;)
-install.packages(&quot;dada2&quot;)
-install.packages(&quot;phyloseq&quot;)
-install.packages(&quot;DECIPHER&quot;)
-install.packages(&quot;phangorn&quot;)
-install.packages(&quot;ape&quot;)
-install.packages(&quot;seqinr&quot;)</code></pre>
+<div id="differentially-abundant-asvs" class="section level3">
+<h3>Differentially abundant ASVs</h3>
+<pre class="r"><code>GM &lt;- subset_samples(ps, Sample_type == &quot;Soil&quot;)
+otu_table(GM) &lt;- otu_table(GM)+1
+diagdds = phyloseq_to_deseq2(GM, ~ 1)
+ts = counts(diagdds)
+geoMeans = apply(ts, 1, function(row) if (all(row == 0)) 0 else exp(mean(log(row[row != 0]))))
+diagdds = estimateSizeFactors(diagdds, geoMeans=geoMeans)
+diagdds = estimateDispersions(diagdds)
+
+diagdds$group &lt;- factor(paste0(diagdds$Variety))
+design(diagdds) &lt;- ~ group
+dds &lt;-DESeq(diagdds, betaPrior=FALSE, parallel = T)
+
+tax.table &lt;- as.data.frame(tax_table(GM))
+
+c1 &lt;- results(dds, contrast=c(&quot;group&quot;, &quot;Ottobratica&quot;, &quot;Sinopolese&quot;), parallel = T)
+c1 &lt;- as.data.frame(c1)
+c1 &lt;- setDT(c1, keep.rownames = TRUE)[]
+c1 &lt;- c1[,c(&quot;rn&quot;, &quot;log2FoldChange&quot;, &quot;padj&quot;)]
+DiffOTUs&lt;- cbind(tax.table, c1)
+DiffOTUs &lt;- DiffOTUs[which(DiffOTUs$padj &lt; 0.05),]
+DiffOTUs</code></pre>
+<p><br></p>
+</div>
+<div id="differential-abundance-at-higher-taxonomic-level" class="section level3">
+<h3>Differential abundance at higher taxonomic level</h3>
+<pre class="r"><code>glom &lt;- microbiome::aggregate_taxa(ps.norm, &quot;Genus&quot;)
+glom &lt;- microbiome::transform(glom, &quot;compositional&quot;)
+dat &lt;- psmelt(glom)
+filt.gen &lt;- dat %&gt;% group_by(Genus) %&gt;% summarize(mean = mean(Abundance)) %&gt;% filter(mean &lt;= 0.01)
+dat &lt;- subset(dat, !(OTU %in% filt.gen$Genus))
+
+group.host &lt;- group_by(dat, Genus)
+list.bact &lt;-unique(c(as.character(group.host$Genus)))
+model_calculator &lt;- sapply(list.bact,  
+                           function(x){
+                             data.s &lt;- group.host[which(group.host$Genus==x),]
+                             model &lt;- lm(Abundance ~ Sample_type * Variety, data = data.s)
+                             aaa &lt;-  Anova(model)
+                             return(aaa)},
+                           simplify = FALSE,USE.NAMES = TRUE)
+
+res &lt;- do.call(rbind, model_calculator)
+res &lt;- setDT(res, keep.rownames = TRUE)[]
+res &lt;- res[which(res$`Pr(&gt;F)` &lt; 0.05),]
+res</code></pre>
 </div>
 
 

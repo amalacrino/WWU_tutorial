@@ -4,6 +4,8 @@ output:
   rmarkdown::html_document:
     toc: true
     toc_float: true
+params:
+  process: FALSE
 ---
 
 ```{r klippy, echo=FALSE, include=TRUE}
@@ -25,7 +27,7 @@ Make sure you have installed:
 
 Open R studio and run the following lines to install the packages we are going to use during this tutorial.
 
-```{r, eval=FALSE}
+```{r, eval=params$process}
 install.packages("tidyverse")
 install.packages("dada2")
 install.packages("phyloseq")

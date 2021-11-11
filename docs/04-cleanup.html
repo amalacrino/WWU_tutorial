@@ -365,6 +365,15 @@ div.tocify {
     <li>
       <a href="04-cleanup.html">Cleanup</a>
     </li>
+    <li>
+      <a href="05-diversity.html">Diversity</a>
+    </li>
+    <li>
+      <a href="06-multivariate.html">Multivariate analysis</a>
+    </li>
+    <li>
+      <a href="07-taxa.html">Taxonomy</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -488,30 +497,6 @@ sdt</code></pre>
 <pre class="r"><code>sample_data(ps) %&gt;%
   group_by(Sample_type, Variety) %&gt;%
   summarise(nr_Samples = n())</code></pre>
-<p><br></p>
-</div>
-<div id="plot-relative-abundance" class="section level3">
-<h3>Plot relative abundance</h3>
-<pre class="r"><code>glom &lt;- microbiome::aggregate_taxa(ps.norm, &quot;Genus&quot;)
-glom &lt;- microbiome::transform(glom, &quot;compositional&quot;)
-dat &lt;- psmelt(glom)
-filt.gen &lt;- dat %&gt;% group_by(Genus) %&gt;% summarize(mean = mean(Abundance)) %&gt;% filter(mean &lt;= 0.01)
-dat &lt;- subset(dat, !(OTU %in% filt.gen$Genus))
-dat &lt;- dat %&gt;% group_by(Sample_type, Genus) %&gt;% summarize(cs = mean(Abundance)) %&gt;% mutate(cs = cs/sum(cs)) 
-
-taxa_plot &lt;- ggplot(dat, aes(x = Sample_type, y = cs, fill = Genus)) +
-                          theme_bw(base_size = 14) +
-                          geom_bar(stat=&quot;identity&quot;) +
-                          labs(y = &quot;Relative proportion&quot;) +
-                          theme(axis.title.x=element_blank(),
-                                axis.text.x = element_text(color=&quot;black&quot;, angle = 45, hjust = 1),
-                                axis.text.y = element_text(color=&quot;black&quot;),
-                                axis.title.y = element_text(color=&quot;black&quot;),
-                                panel.grid = element_blank(),
-                                strip.background = element_blank(),
-                                strip.text = element_blank()) +
-                          scale_y_continuous(labels = function(x) paste0(x*100, &quot;%&quot;))
-taxa_plot</code></pre>
 </div>
 
 

@@ -11,7 +11,7 @@
 
 
 
-<title>Setup</title>
+<title>Diversity</title>
 
 <script src="site_libs/header-attrs-2.10/header-attrs.js"></script>
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
@@ -388,7 +388,7 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Setup</h1>
+<h1 class="title toc-ignore">Diversity</h1>
 
 </div>
 
@@ -398,25 +398,46 @@ div.tocify {
   addKlippy('left', 'top', 'auto', '1', 'Copy code', 'Copied!');
 </script>
 <p><br></p>
-<div id="software-installation" class="section level2">
-<h2>Software installation</h2>
-<p>Make sure you have installed:</p>
-<ul>
-<li><strong>R</strong> – <a href="https://www.r-project.org/">link</a></li>
-<li><strong>R studio</strong> – <a href="https://www.rstudio.com/">link</a></li>
-</ul>
 <hr />
+<div id="calculate-diversity-measures" class="section level3">
+<h3>Calculate diversity measures</h3>
+<pre class="r"><code>div &lt;- microbiome::alpha(ps, index = &quot;all&quot;)
+div &lt;- cbind(sample_data(ps), div)</code></pre>
+<p>If the phylogenetic tree is available, you can estimate also the phylogenetic diversity:</p>
+<pre class="r"><code>tree &lt;- phy_tree(ps)
+otus &lt;- as.data.frame((otu_table(ps)))
+div.pd &lt;- pd(otus, tree, include.root = FALSE)
+div &lt;- cbind(div, div.pd)</code></pre>
+<p><br></p>
 </div>
-<div id="r-packages-installation" class="section level2">
-<h2>R packages installation</h2>
-<p>Open R studio and run the following lines to install the packages we are going to use during this tutorial.</p>
-<pre class="r"><code>install.packages(&quot;tidyverse&quot;)
-install.packages(&quot;dada2&quot;)
-install.packages(&quot;phyloseq&quot;)
-install.packages(&quot;DECIPHER&quot;)
-install.packages(&quot;phangorn&quot;)
-install.packages(&quot;ape&quot;)
-install.packages(&quot;seqinr&quot;)</code></pre>
+<div id="test-model" class="section level3">
+<h3>Test model</h3>
+<pre class="r"><code>library(&quot;car&quot;)
+model &lt;- lm(diversity_shannon ~ Sample_type * Variety, data = div)
+Anova(model)</code></pre>
+<p><br></p>
+</div>
+<div id="run-post-hoc-contrasts" class="section level3">
+<h3>Run post-hoc contrasts</h3>
+<pre class="r"><code>library(&quot;emmeans&quot;)
+m1 &lt;- emmeans(model, &quot;Variety&quot;, by = &quot;Sample_type&quot;)
+pairs(m1)</code></pre>
+<p><br></p>
+</div>
+<div id="plot" class="section level3">
+<h3>Plot</h3>
+<pre class="r"><code>p1 &lt;- ggplot(div, aes(x = Sample_type, y = diversity_shannon, fill = Variety)) +
+    theme_bw(base_size = 15) +
+    geom_boxplot(outlier.colour=&quot;black&quot;, notch=F, outlier.shape=NA) +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(color=&quot;black&quot;),
+          axis.text.y = element_text(color=&quot;black&quot;),
+          panel.grid = element_blank(),
+          legend.justification = c(0.99, 0.99),
+          legend.title=element_blank(), 
+          legend.background = element_rect(fill=&quot;transparent&quot;),
+          legend.key = element_rect(fill=&quot;transparent&quot;))
+p1</code></pre>
 </div>
 
 

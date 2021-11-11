@@ -25,3 +25,9 @@ navbar:
       menu:
         - text: "Cleanup"
           href: "04-cleanup.html"
+        - text: "Diversity"
+          href: "05-diversity.html"
+        - text: "Multivariate analysis"
+          href: "06-multivariate.html"
+        - text: "Taxonomy"
+          href: "07-taxa.html"

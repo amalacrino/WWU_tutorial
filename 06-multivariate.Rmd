@@ -1,0 +1,74 @@
+---
+title: "Multivariate analysis"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+params:
+  process: FALSE
+---
+
+```{r klippy, echo=FALSE, include=TRUE}
+klippy::klippy()
+```
+
+<br>
+
+----
+
+### PERMANOVA
+
+```{r, eval=params$process}
+sampledf <- data.frame(sample_data(ps))
+dist.mat <- phyloseq::distance(ps, method = "unifrac")
+perm <- how(nperm = 999)
+#setBlocks(perm) <- with(sampledf, Block) #this is optional in case you need to include random factors
+set.seed(100)
+pmv <- adonis2(dist.mat ~ Sample_type * Variety, data = sampledf, permutations = perm)
+pmv
+```
+
+<br>
+
+### Pairwise comparison
+
+```{r, eval=params$process}
+pairwise.perm.manova(dist.mat, paste0(sampledf$Sample_type, sampledf$Variety), 
+                     nperm = 999, progress = TRUE, p.method = "fdr", F = T, R2 = T)
+```
+
+
+```{r, eval=params$process}
+pairwise.perm.manova(dist.mat, sampledf$Sample_type, 
+                     nperm = 999, progress = TRUE, p.method = "fdr", F = T, R2 = T)
+```
+
+
+```{r, eval=params$process}
+pairwise.perm.manova(dist.mat, sampledf$Variety, 
+                     nperm = 999, progress = TRUE, p.method = "fdr", F = T, R2 = T)
+```
+
+<br>
+
+
+### Plot ordination
+
+```{r, eval=params$process}
+cap_ord <- ordinate(physeq = ps, method = "NMDS", distance = dist.mat, formula = ~ Sample_type * Variety)
+
+cap_plot <- plot_ordination(physeq = ps, ordination = cap_ord, axes = c(1,2)) +
+  theme_bw(base_size = 20) +
+  stat_ellipse(mapping = aes(linetype = Sample_type),
+               alpha = 0.4,
+               type = "norm",
+               show.legend=F) +
+  geom_point(mapping = aes(color = Sample_type, shape = Variety), size = 5) +
+  theme(legend.title= element_blank(), 
+        legend.background = element_rect(color = NA),
+        legend.text = element_text(size = 12),
+        axis.text.x = element_text(color="black"),
+        axis.text.y = element_text(color="black"),
+        panel.grid = element_blank())
+cap_plot
+```

@@ -1,0 +1,97 @@
+---
+title: "Taxonomy"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+params:
+  process: FALSE
+---
+
+```{r klippy, echo=FALSE, include=TRUE}
+klippy::klippy()
+```
+
+<br>
+
+----
+
+### Plot taxa 
+
+```{r, eval=params$process}
+glom <- microbiome::aggregate_taxa(ps.norm, "Genus")
+glom <- microbiome::transform(glom, "compositional")
+dat <- psmelt(glom)
+filt.gen <- dat %>% group_by(Genus) %>% summarize(mean = mean(Abundance)) %>% filter(mean <= 0.01)
+dat <- subset(dat, !(OTU %in% filt.gen$Genus))
+dat <- dat %>% group_by(Sample_type, Genus) %>% summarize(cs = mean(Abundance)) %>% mutate(cs = cs/sum(cs)) 
+
+taxa_plot <- ggplot(dat, aes(x = Sample_type, y = cs, fill = Genus)) +
+                          theme_bw(base_size = 14) +
+                          geom_bar(stat="identity") +
+                          labs(y = "Relative proportion") +
+                          theme(axis.title.x=element_blank(),
+                                axis.text.x = element_text(color="black", angle = 45, hjust = 1),
+                                axis.text.y = element_text(color="black"),
+                                axis.title.y = element_text(color="black"),
+                                panel.grid = element_blank(),
+                                strip.background = element_blank(),
+                                strip.text = element_blank()) +
+                          scale_y_continuous(labels = function(x) paste0(x*100, "%"))
+taxa_plot
+```
+
+<br>
+
+### Differentially abundant ASVs
+
+```{r, eval=params$process}
+GM <- subset_samples(ps, Sample_type == "Soil")
+otu_table(GM) <- otu_table(GM)+1
+diagdds = phyloseq_to_deseq2(GM, ~ 1)
+ts = counts(diagdds)
+geoMeans = apply(ts, 1, function(row) if (all(row == 0)) 0 else exp(mean(log(row[row != 0]))))
+diagdds = estimateSizeFactors(diagdds, geoMeans=geoMeans)
+diagdds = estimateDispersions(diagdds)
+
+diagdds$group <- factor(paste0(diagdds$Variety))
+design(diagdds) <- ~ group
+dds <-DESeq(diagdds, betaPrior=FALSE, parallel = T)
+
+tax.table <- as.data.frame(tax_table(GM))
+
+c1 <- results(dds, contrast=c("group", "Ottobratica", "Sinopolese"), parallel = T)
+c1 <- as.data.frame(c1)
+c1 <- setDT(c1, keep.rownames = TRUE)[]
+c1 <- c1[,c("rn", "log2FoldChange", "padj")]
+DiffOTUs<- cbind(tax.table, c1)
+DiffOTUs <- DiffOTUs[which(DiffOTUs$padj < 0.05),]
+DiffOTUs
+```
+
+<br>
+
+### Differential abundance at higher taxonomic level
+
+```{r, eval=params$process}
+glom <- microbiome::aggregate_taxa(ps.norm, "Genus")
+glom <- microbiome::transform(glom, "compositional")
+dat <- psmelt(glom)
+filt.gen <- dat %>% group_by(Genus) %>% summarize(mean = mean(Abundance)) %>% filter(mean <= 0.01)
+dat <- subset(dat, !(OTU %in% filt.gen$Genus))
+
+group.host <- group_by(dat, Genus)
+list.bact <-unique(c(as.character(group.host$Genus)))
+model_calculator <- sapply(list.bact,  
+                           function(x){
+                             data.s <- group.host[which(group.host$Genus==x),]
+                             model <- lm(Abundance ~ Sample_type * Variety, data = data.s)
+                             aaa <-  Anova(model)
+                             return(aaa)},
+                           simplify = FALSE,USE.NAMES = TRUE)
+
+res <- do.call(rbind, model_calculator)
+res <- setDT(res, keep.rownames = TRUE)[]
+res <- res[which(res$`Pr(>F)` < 0.05),]
+res
+```

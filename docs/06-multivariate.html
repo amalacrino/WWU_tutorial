@@ -11,7 +11,7 @@
 
 
 
-<title>Setup</title>
+<title>Multivariate analysis</title>
 
 <script src="site_libs/header-attrs-2.10/header-attrs.js"></script>
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
@@ -388,7 +388,7 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Setup</h1>
+<h1 class="title toc-ignore">Multivariate analysis</h1>
 
 </div>
 
@@ -398,25 +398,46 @@ div.tocify {
   addKlippy('left', 'top', 'auto', '1', 'Copy code', 'Copied!');
 </script>
 <p><br></p>
-<div id="software-installation" class="section level2">
-<h2>Software installation</h2>
-<p>Make sure you have installed:</p>
-<ul>
-<li><strong>R</strong> – <a href="https://www.r-project.org/">link</a></li>
-<li><strong>R studio</strong> – <a href="https://www.rstudio.com/">link</a></li>
-</ul>
 <hr />
+<div id="permanova" class="section level3">
+<h3>PERMANOVA</h3>
+<pre class="r"><code>sampledf &lt;- data.frame(sample_data(ps))
+dist.mat &lt;- phyloseq::distance(ps, method = &quot;unifrac&quot;)
+perm &lt;- how(nperm = 999)
+#setBlocks(perm) &lt;- with(sampledf, Block) #this is optional in case you need to include random factors
+set.seed(100)
+pmv &lt;- adonis2(dist.mat ~ Sample_type * Variety, data = sampledf, permutations = perm)
+pmv</code></pre>
+<p><br></p>
 </div>
-<div id="r-packages-installation" class="section level2">
-<h2>R packages installation</h2>
-<p>Open R studio and run the following lines to install the packages we are going to use during this tutorial.</p>
-<pre class="r"><code>install.packages(&quot;tidyverse&quot;)
-install.packages(&quot;dada2&quot;)
-install.packages(&quot;phyloseq&quot;)
-install.packages(&quot;DECIPHER&quot;)
-install.packages(&quot;phangorn&quot;)
-install.packages(&quot;ape&quot;)
-install.packages(&quot;seqinr&quot;)</code></pre>
+<div id="pairwise-comparison" class="section level3">
+<h3>Pairwise comparison</h3>
+<pre class="r"><code>pairwise.perm.manova(dist.mat, paste0(sampledf$Sample_type, sampledf$Variety), 
+                     nperm = 999, progress = TRUE, p.method = &quot;fdr&quot;, F = T, R2 = T)</code></pre>
+<pre class="r"><code>pairwise.perm.manova(dist.mat, sampledf$Sample_type, 
+                     nperm = 999, progress = TRUE, p.method = &quot;fdr&quot;, F = T, R2 = T)</code></pre>
+<pre class="r"><code>pairwise.perm.manova(dist.mat, sampledf$Variety, 
+                     nperm = 999, progress = TRUE, p.method = &quot;fdr&quot;, F = T, R2 = T)</code></pre>
+<p><br></p>
+</div>
+<div id="plot-ordination" class="section level3">
+<h3>Plot ordination</h3>
+<pre class="r"><code>cap_ord &lt;- ordinate(physeq = ps, method = &quot;NMDS&quot;, distance = dist.mat, formula = ~ Sample_type * Variety)
+
+cap_plot &lt;- plot_ordination(physeq = ps, ordination = cap_ord, axes = c(1,2)) +
+  theme_bw(base_size = 20) +
+  stat_ellipse(mapping = aes(linetype = Sample_type),
+               alpha = 0.4,
+               type = &quot;norm&quot;,
+               show.legend=F) +
+  geom_point(mapping = aes(color = Sample_type, shape = Variety), size = 5) +
+  theme(legend.title= element_blank(), 
+        legend.background = element_rect(color = NA),
+        legend.text = element_text(size = 12),
+        axis.text.x = element_text(color=&quot;black&quot;),
+        axis.text.y = element_text(color=&quot;black&quot;),
+        panel.grid = element_blank())
+cap_plot</code></pre>
 </div>
 
 

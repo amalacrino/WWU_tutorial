@@ -1,0 +1,75 @@
+---
+title: "Diversity"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+params:
+  process: FALSE
+---
+
+```{r klippy, echo=FALSE, include=TRUE}
+klippy::klippy()
+```
+
+<br>
+
+----
+
+### Calculate diversity measures
+
+```{r, eval=params$process}
+div <- microbiome::alpha(ps, index = "all")
+div <- cbind(sample_data(ps), div)
+```
+
+If the phylogenetic tree is available, you can estimate also the phylogenetic diversity:
+
+```{r, eval=params$process}
+tree <- phy_tree(ps)
+otus <- as.data.frame((otu_table(ps)))
+div.pd <- pd(otus, tree, include.root = FALSE)
+div <- cbind(div, div.pd)
+```
+
+<br>
+
+
+### Test model
+
+```{r, eval=params$process}
+library("car")
+model <- lm(diversity_shannon ~ Sample_type * Variety, data = div)
+Anova(model)
+```
+
+<br>
+
+### Run post-hoc contrasts
+
+```{r, eval=params$process}
+library("emmeans")
+m1 <- emmeans(model, "Variety", by = "Sample_type")
+pairs(m1)
+```
+
+<br>
+
+### Plot
+
+```{r, eval=params$process}
+p1 <- ggplot(div, aes(x = Sample_type, y = diversity_shannon, fill = Variety)) +
+    theme_bw(base_size = 15) +
+    geom_boxplot(outlier.colour="black", notch=F, outlier.shape=NA) +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(color="black"),
+          axis.text.y = element_text(color="black"),
+          panel.grid = element_blank(),
+          legend.justification = c(0.99, 0.99),
+          legend.title=element_blank(), 
+          legend.background = element_rect(fill="transparent"),
+          legend.key = element_rect(fill="transparent"))
+p1
+```
+
+
